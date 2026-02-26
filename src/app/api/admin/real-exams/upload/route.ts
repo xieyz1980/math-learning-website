@@ -1,37 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
-import * as pdfjs from "pdfjs-dist";
+import { getSupabaseClient } from "@/storage/database/supabase-client";
 
-// 设置 pdf.js worker
-const pdfjsVersion = pdfjs.version || "5.4.624";
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`;
+// 初始化 Supabase 客户端（使用项目统一的方法）
+const supabase = getSupabaseClient();
 
-// 初始化 Supabase 客户端
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-interface UploadData {
-  title: string;
-  gradeId: string;
-  region: string;
-  semester: string;
-  examType: string;
-  year: number;
-  duration: number;
-  pdfUrl?: string; // 可选的PDF URL
-}
-
-// 使用 pdfjs-dist 解析 PDF
+// 使用 pdfjs-dist 解析 PDF - 使用动态导入避免 Next.js 打包问题
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
+    // 动态导入 pdfjs
+    const pdfjs = await import("pdfjs-dist");
+    
+    // 配置 worker (只在使用时配置)
+    const workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+    if (typeof window !== "undefined" && !pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+    }
+
     // 加载 PDF 文档
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       useWorkerFetch: false,
       isEvalSupported: false,
-      useSystemFonts: true,
     });
 
     const pdf = await loadingTask.promise;
