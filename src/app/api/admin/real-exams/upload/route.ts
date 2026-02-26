@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { LLMClient, Config } from "coze-coding-dev-sdk";
+import { S3Storage } from "coze-coding-dev-sdk";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyAdmin } from "@/lib/auth";
 
-// 初始化 Supabase 客户端（使用项目统一的方法）
 const supabase = getSupabaseClient();
 
-// 使用 pdfjs-dist 解析 PDF - 服务器端版本
-async function extractTextFromPDF(buffer: Buffer): Promise<string> {
-  try {
-    // 使用独立的 PDF 解析工具
-    const pdfParser = require("@/lib/pdf-parser.js");
-    return await pdfParser.extractTextFromPDF(buffer);
-  } catch (error) {
-    console.error("PDF 解析失败:", error);
-    throw new Error(`PDF 解析失败: ${error}`);
-  }
-}
+// 初始化对象存储
+const storage = new S3Storage({
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+  accessKey: "",
+  secretKey: "",
+  bucketName: process.env.COZE_BUCKET_NAME,
+  region: "cn-beijing",
+});
 
-// LLM解析PDF文本并提取题目
+// 使用 LLM 处理 PDF 并提取题目
 async function extractQuestionsFromPDF(
-  pdfText: string,
+  pdfUrl: string,
   title: string,
 ): Promise<{
   questions: Array<{
@@ -40,7 +37,7 @@ async function extractQuestionsFromPDF(
 
   const systemPrompt = `你是一个专业的数学试卷解析专家，擅长从数学试卷中提取题目信息。
 
-请从提供的数学试卷文本中提取所有题目，并按照以下JSON格式返回：
+请从提供的 PDF 试卷中提取所有题目，并按照以下 JSON 格式返回：
 
 {
   "questions": [
@@ -71,14 +68,14 @@ async function extractQuestionsFromPDF(
 5. 对于选择题，options 是必需的
 6. 对于填空题和解答题，options 为 null
 7. answer 字段要包含完整的答案内容
-8. 只返回JSON，不要有其他解释性文字
+8. 只返回 JSON，不要有其他解释性文字
 9. 确保提取到所有题目，不要遗漏`;
 
   const messages = [
     { role: "system" as const, content: systemPrompt },
     {
       role: "user" as const,
-      content: `请解析以下数学试卷：${title}\n\n${pdfText}`,
+      content: `请解析以下数学试卷（PDF文件）：\n\n试卷标题：${title}\n\n试卷文件地址：${pdfUrl}\n\n请从该 PDF 文件中提取所有题目信息。`,
     },
   ];
 
@@ -88,22 +85,22 @@ async function extractQuestionsFromPDF(
       temperature: 0.3,
     });
 
-    // 提取JSON部分
+    // 提取 JSON 部分
     const content = response.content.trim();
     const jsonMatch = content.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      throw new Error("无法从LLM响应中提取JSON");
+      throw new Error("无法从 LLM 响应中提取 JSON");
     }
 
     const result = JSON.parse(jsonMatch[0]);
 
     // 验证数据格式
     if (!result.questions || !Array.isArray(result.questions)) {
-      throw new Error("解析结果格式错误：缺少questions数组");
+      throw new Error("解析结果格式错误：缺少 questions 数组");
     }
 
-    // 计算总分（如果LLM没有提供）
+    // 计算总分（如果 LLM 没有提供）
     if (!result.totalScore || result.totalScore === 0) {
       result.totalScore = result.questions.reduce(
         (sum: number, q: any) => sum + (q.score || 0),
@@ -113,12 +110,12 @@ async function extractQuestionsFromPDF(
 
     return result;
   } catch (error) {
-    console.error("LLM解析错误:", error);
+    console.error("LLM 解析错误:", error);
     throw new Error(`解析试卷失败: ${error}`);
   }
 }
 
-// POST上传真题
+// POST 上传真题
 export async function POST(request: NextRequest) {
   try {
     // 验证管理员权限
@@ -141,27 +138,40 @@ export async function POST(request: NextRequest) {
 
     // 必须提供文件
     if (!pdfFile) {
-      return NextResponse.json({ error: "请上传PDF文件" }, { status: 400 });
+      return NextResponse.json({ error: "请上传 PDF 文件" }, { status: 400 });
     }
 
     // 检查文件类型
     if (pdfFile.type !== "application/pdf") {
-      return NextResponse.json({ error: "只支持PDF文件" }, { status: 400 });
+      return NextResponse.json({ error: "只支持 PDF 文件" }, { status: 400 });
     }
 
     // 读取文件内容
     const arrayBuffer = await pdfFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 解析PDF文本
-    console.log("开始解析PDF...");
-    const pdfText = await extractTextFromPDF(buffer);
-    console.log("PDF解析成功，文本长度:", pdfText.length);
+    console.log("开始上传 PDF 到对象存储...");
+    // 上传 PDF 到对象存储
+    const pdfKey = await storage.uploadFile({
+      fileContent: buffer,
+      fileName: `real-exams/${title}_${Date.now()}.pdf`,
+      contentType: "application/pdf",
+    });
 
-    // 使用LLM提取题目
-    console.log("开始LLM解析题目...");
-    const extractedData = await extractQuestionsFromPDF(pdfText, title);
-    console.log("LLM解析完成，提取题目数量:", extractedData.questions.length);
+    console.log("PDF 上传成功，key:", pdfKey);
+
+    // 生成 PDF 的访问 URL
+    const pdfUrl = await storage.generatePresignedUrl({
+      key: pdfKey,
+      expireTime: 3600, // 1 小时有效期
+    });
+
+    console.log("PDF URL 生成成功:", pdfUrl);
+
+    // 使用 LLM 提取题目
+    console.log("开始 LLM 解析题目...");
+    const extractedData = await extractQuestionsFromPDF(pdfUrl, title);
+    console.log("LLM 解析完成，提取题目数量:", extractedData.questions.length);
 
     // 创建真题记录
     const { data: exam, error: examError } = await supabase
