@@ -37,6 +37,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { UploadRealExamDialog } from "./UploadRealExamDialog";
+import { OCRUploadDialog } from "./OCRUploadDialog";
 
 interface RealExam {
   id: string;
@@ -170,9 +171,12 @@ export function RealExamManagement() {
   return (
     <div className="space-y-6">
       {/* 操作栏 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-bold">真题管理</h2>
-        <UploadRealExamDialog onSuccess={fetchExams} />
+        <div className="flex gap-2">
+          <UploadRealExamDialog onSuccess={fetchExams} />
+          <OCRUploadDialog onSuccess={fetchExams} />
+        </div>
       </div>
 
       {/* 筛选器 */}
