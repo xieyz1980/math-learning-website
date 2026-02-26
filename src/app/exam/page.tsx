@@ -198,7 +198,7 @@ export default function ExamPage() {
     const details: any[] = [];
     
     generatedPaper.questions.forEach((question, index) => {
-      const userAnswer = userAnswers[questionId(question)];
+      const userAnswer = userAnswers[questionId(index)];
       const isCorrect = userAnswer !== undefined && userAnswer === question.answer;
       
       details.push({
