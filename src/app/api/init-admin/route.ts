@@ -8,12 +8,12 @@ export async function POST(request: NextRequest) {
 
     // 检查超级管理员是否已存在
     const { data: existingAdmin } = await client
-      .from('users')
+      .from('app_users')
       .select('*')
       .eq('email', 'xieyouzehpu@outlook.com')
-      .single();
+      .limit(1);
 
-    if (existingAdmin) {
+    if (existingAdmin && existingAdmin.length > 0) {
       return NextResponse.json({
         success: true,
         message: '超级管理员已存在',
@@ -24,14 +24,16 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash('xyz20010', 10);
 
     const { data, error } = await client
-      .from('users')
+      .from('app_users')
       .insert({
         email: 'xieyouzehpu@outlook.com',
         password: hashedPassword,
         role: 'admin',
+        points: 1000,
+        status: 'active',
       })
       .select()
-      .single();
+      .limit(1);
 
     if (error) {
       throw error;

@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
 
     // 检查邮箱是否已存在
     const { data: existingUser } = await client
-      .from('users')
+      .from('app_users')
       .select('*')
       .eq('email', email)
-      .single();
+      .limit(1);
 
-    if (existingUser) {
+    if (existingUser && existingUser.length > 0) {
       return NextResponse.json(
         { success: false, error: '该邮箱已被注册' },
         { status: 400 }
@@ -33,14 +33,16 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const { data, error } = await client
-      .from('users')
+      .from('app_users')
       .insert({
         email,
         password: hashedPassword,
         role: 'user',
+        points: 300,
+        status: 'active',
       })
       .select()
-      .single();
+      .limit(1);
 
     if (error) {
       throw error;

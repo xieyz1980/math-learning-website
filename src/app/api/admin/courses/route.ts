@@ -44,12 +44,12 @@ export async function POST(request: NextRequest) {
 
     // 验证用户是否是管理员
     const { data: user } = await client
-      .from('users')
+      .from('app_users')
       .select('*')
       .eq('id', userId)
-      .single();
+      .limit(1);
 
-    if (!user || user.role !== 'admin') {
+    if (!user || user.length === 0 || user[0].role !== 'admin') {
       return NextResponse.json(
         { success: false, error: '无权限添加课程' },
         { status: 403 }

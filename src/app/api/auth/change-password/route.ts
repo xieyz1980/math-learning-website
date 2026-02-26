@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
 
     // 查找用户
     const { data: user } = await client
-      .from('users')
+      .from('app_users')
       .select('*')
       .eq('id', userId)
-      .single();
+      .limit(1);
 
-    if (!user) {
+    if (!user || user.length === 0) {
       return NextResponse.json(
         { success: false, error: '用户不存在' },
         { status: 404 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证当前密码
-    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    const isPasswordValid = await bcrypt.compare(currentPassword, user[0].password);
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     const { error } = await client
-      .from('users')
+      .from('app_users')
       .update({ password: hashedPassword })
       .eq('id', userId);
 

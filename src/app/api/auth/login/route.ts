@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
 
     // 查找用户
     const { data: user } = await client
-      .from('users')
+      .from('app_users')
       .select('*')
       .eq('email', email)
-      .single();
+      .limit(1);
 
-    if (!user) {
+    if (!user || user.length === 0) {
       return NextResponse.json(
         { success: false, error: '邮箱或密码错误' },
         { status: 401 }
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证密码
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user[0].password);
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -43,9 +43,11 @@ export async function POST(request: NextRequest) {
       success: true,
       message: '登录成功',
       data: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+        id: user[0].id,
+        email: user[0].email,
+        role: user[0].role,
+        points: user[0].points,
+        status: user[0].status,
       },
     });
   } catch (error) {
