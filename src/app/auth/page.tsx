@@ -204,19 +204,6 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
-
-                {/* 测试账号提示 */}
-                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                    测试账号（管理员）
-                  </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    邮箱：xieyouzehpu@outlook.com
-                  </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    密码：xyz20010
-                  </p>
-                </div>
               </TabsContent>
 
               {/* 注册表单 */}
