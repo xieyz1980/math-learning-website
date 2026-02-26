@@ -50,16 +50,14 @@ interface RealExam {
   total_score: number;
   question_count: number;
   created_at: string;
-}
-
-interface Grade {
-  id: string;
-  name: string;
+  grades?: {
+    id: string;
+    name: string;
+  };
 }
 
 export function RealExamManagement() {
   const [exams, setExams] = useState<RealExam[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [examToDelete, setExamToDelete] = useState<RealExam | null>(null);
@@ -92,30 +90,18 @@ export function RealExamManagement() {
     }
   };
 
-  const fetchGrades = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/grades", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("获取年级列表失败");
-      }
-
-      const data = await response.json();
-      setGrades(data.grades || []);
-    } catch (error) {
-      console.error("获取年级列表失败:", error);
-    }
-  };
-
   useEffect(() => {
     fetchExams();
-    fetchGrades();
   }, []);
+
+  // 获取唯一年级列表（从exams中提取）
+  const uniqueGrades = Array.from(
+    new Map(
+      exams
+        .filter(e => e.grades)
+        .map(e => [e.grades!.id, e.grades!])
+    ).values()
+  );
 
   const handleDelete = async () => {
     if (!examToDelete) return;
@@ -147,7 +133,7 @@ export function RealExamManagement() {
   // 筛选逻辑
   const filteredExams = exams.filter((exam) => {
     if (gradeFilter !== "all") {
-      const grade = grades.find((g) => g.id === exam.grade_id);
+      const grade = uniqueGrades.find((g) => g.id === exam.grade_id) || exam.grades;
       if (!grade || grade.name !== gradeFilter) {
         return false;
       }
@@ -160,12 +146,6 @@ export function RealExamManagement() {
     }
     return true;
   });
-
-  // 获取年级名称
-  const getGradeName = (gradeId: string) => {
-    const grade = grades.find((g) => g.id === gradeId);
-    return grade ? grade.name : "未知";
-  };
 
   return (
     <div className="space-y-6">
@@ -187,7 +167,7 @@ export function RealExamManagement() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部年级</SelectItem>
-              {grades.map((grade) => (
+              {uniqueGrades.map((grade) => (
                 <SelectItem key={grade.id} value={grade.name}>
                   {grade.name}
                 </SelectItem>
@@ -277,7 +257,7 @@ export function RealExamManagement() {
                   <TableCell>
                     <div className="flex items-center space-x-1">
                       <GraduationCap className="h-4 w-4 text-blue-600" />
-                      <span>{getGradeName(exam.grade_id)}</span>
+                      <span>{exam.grades?.name || "未知"}</span>
                     </div>
                   </TableCell>
                   <TableCell>{exam.region}</TableCell>

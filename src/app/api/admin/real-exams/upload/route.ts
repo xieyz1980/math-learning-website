@@ -95,7 +95,10 @@ async function parseExamFromPDF(
     return result;
   } catch (error) {
     console.error("解析失败:", error);
-    throw new Error(`解析失败: ${error}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    // 清理错误消息中的特殊字符
+    const cleanError = errorMessage.replace(/[\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+    throw new Error(`解析失败: ${cleanError}`);
   }
 }
 
@@ -195,6 +198,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("上传失败:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    // 清理错误消息中的特殊字符和换行符
+    const cleanError = errorMessage.replace(/[\n\r\t]/g, ' ').replace(/\s+/g, ' ').trim();
+    return NextResponse.json({ error: cleanError }, { status: 500 });
   }
 }
