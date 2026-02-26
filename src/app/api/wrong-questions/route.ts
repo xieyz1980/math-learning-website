@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
         question_source: questionSource,
         source_id: sourceId,
         record_id: recordId,
-        knowledge_points,
+        knowledge_points: knowledgePoints,
       })
       .select()
       .single();
