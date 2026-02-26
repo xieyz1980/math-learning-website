@@ -30,8 +30,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Upload, Loader2, FileText, Trash2, Eye } from "lucide-react";
+import { Upload, Loader2, FileText, Trash2, Eye } from "lucide-react";
 
 interface RealExam {
   id: string;
@@ -68,8 +67,8 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
     examType: "期中",
     year: new Date().getFullYear().toString(),
     duration: "120",
-    pdfUrl: "",
   });
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   useEffect(() => {
     loadExams();
@@ -92,31 +91,44 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
     }
   };
 
-  const handleSingleUpload = async () => {
-    if (!uploadFormData.title || !uploadFormData.pdfUrl) {
-      alert("请填写完整信息");
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        alert("请选择PDF文件");
+        return;
+      }
+      setPdfFile(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!uploadFormData.title || !pdfFile) {
+      alert("请填写完整信息并选择PDF文件");
       return;
     }
 
     setUploading(true);
     try {
       const token = localStorage.getItem("token");
+
+      // 创建 FormData
+      const formData = new FormData();
+      formData.append("title", uploadFormData.title);
+      formData.append("gradeId", uploadFormData.gradeId);
+      formData.append("region", uploadFormData.region);
+      formData.append("semester", uploadFormData.semester);
+      formData.append("examType", uploadFormData.examType);
+      formData.append("year", uploadFormData.year);
+      formData.append("duration", uploadFormData.duration);
+      formData.append("pdfFile", pdfFile);
+
       const response = await fetch("/api/admin/real-exams/upload", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: uploadFormData.title,
-          gradeId: uploadFormData.gradeId,
-          region: uploadFormData.region,
-          semester: uploadFormData.semester,
-          examType: uploadFormData.examType,
-          year: parseInt(uploadFormData.year),
-          duration: parseInt(uploadFormData.duration),
-          pdfUrl: uploadFormData.pdfUrl,
-        }),
+        body: formData,
       });
 
       const data = await response.json();
@@ -134,70 +146,6 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
       alert("上传失败，请稍后重试");
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleBatchUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== "application/json") {
-      alert("请上传JSON文件");
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      const examList = JSON.parse(text);
-
-      if (!Array.isArray(examList)) {
-        alert("文件格式错误：应为JSON数组");
-        return;
-      }
-
-      const token = localStorage.getItem("token");
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const exam of examList) {
-        try {
-          const response = await fetch("/api/admin/real-exams/upload", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              title: exam.title,
-              gradeId: exam.gradeId,
-              region: exam.region,
-              semester: exam.semester,
-              examType: exam.examType,
-              year: exam.year,
-              duration: exam.duration,
-              pdfUrl: exam.pdfUrl,
-            }),
-          });
-
-          const data = await response.json();
-          if (data.success) {
-            successCount++;
-          } else {
-            failCount++;
-            console.error(`上传失败: ${exam.title}`, data.error);
-          }
-        } catch (error) {
-          failCount++;
-          console.error(`上传失败: ${exam.title}`, error);
-        }
-      }
-
-      alert(`批量上传完成：成功 ${successCount} 个，失败 ${failCount} 个`);
-      setIsUploadDialogOpen(false);
-      loadExams();
-    } catch (error) {
-      console.error("批量上传失败:", error);
-      alert("批量上传失败，请检查文件格式");
     }
   };
 
@@ -236,31 +184,8 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
       examType: "期中",
       year: new Date().getFullYear().toString(),
       duration: "120",
-      pdfUrl: "",
     });
-  };
-
-  const downloadTemplate = () => {
-    const template = [
-      {
-        title: "示例：海淀区七年级上数学期中试卷",
-        gradeId: "初一",
-        region: "海淀区",
-        semester: "上学期",
-        examType: "期中",
-        year: 2025,
-        duration: 120,
-        pdfUrl: "https://example.com/exam.pdf",
-      },
-    ];
-    const blob = new Blob([JSON.stringify(template, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "batch_upload_template.json";
-    a.click();
+    setPdfFile(null);
   };
 
   return (
@@ -278,187 +203,154 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
                 上传真题
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>上传真题</DialogTitle>
                 <DialogDescription>
-                  支持单个上传或批量上传（JSON格式）
+                  上传PDF文件，系统将自动解析并提取题目
                 </DialogDescription>
               </DialogHeader>
-              <Tabs defaultValue="single">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="single">单个上传</TabsTrigger>
-                  <TabsTrigger value="batch">批量上传</TabsTrigger>
-                </TabsList>
-                <TabsContent value="single" className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <Label>试卷标题 *</Label>
+                  <Input
+                    value={uploadFormData.title}
+                    onChange={(e) =>
+                      setUploadFormData({ ...uploadFormData, title: e.target.value })
+                    }
+                    placeholder="例如：海淀区七年级上数学期中试卷"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>试卷标题 *</Label>
-                    <Input
-                      value={uploadFormData.title}
-                      onChange={(e) =>
-                        setUploadFormData({ ...uploadFormData, title: e.target.value })
+                    <Label>年级 *</Label>
+                    <Select
+                      value={uploadFormData.gradeId}
+                      onValueChange={(value) =>
+                        setUploadFormData({ ...uploadFormData, gradeId: value })
                       }
-                      placeholder="例如：海淀区七年级上数学期中试卷"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>年级 *</Label>
-                      <Select
-                        value={uploadFormData.gradeId}
-                        onValueChange={(value) =>
-                          setUploadFormData({ ...uploadFormData, gradeId: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择年级" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="初一">初一</SelectItem>
-                          <SelectItem value="初二">初二</SelectItem>
-                          <SelectItem value="初三">初三</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>地区 *</Label>
-                      <Input
-                        value={uploadFormData.region}
-                        onChange={(e) =>
-                          setUploadFormData({ ...uploadFormData, region: e.target.value })
-                        }
-                        placeholder="例如：海淀区"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>学期 *</Label>
-                      <Select
-                        value={uploadFormData.semester}
-                        onValueChange={(value) =>
-                          setUploadFormData({ ...uploadFormData, semester: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="上学期">上学期</SelectItem>
-                          <SelectItem value="下学期">下学期</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>考试类型 *</Label>
-                      <Select
-                        value={uploadFormData.examType}
-                        onValueChange={(value) =>
-                          setUploadFormData({ ...uploadFormData, examType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="期中">期中</SelectItem>
-                          <SelectItem value="期末">期末</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>年份 *</Label>
-                      <Input
-                        type="number"
-                        value={uploadFormData.year}
-                        onChange={(e) =>
-                          setUploadFormData({ ...uploadFormData, year: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>考试时长（分钟） *</Label>
-                      <Input
-                        type="number"
-                        value={uploadFormData.duration}
-                        onChange={(e) =>
-                          setUploadFormData({ ...uploadFormData, duration: e.target.value })
-                        }
-                        placeholder="120"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>PDF文件URL *</Label>
-                    <Input
-                      value={uploadFormData.pdfUrl}
-                      onChange={(e) =>
-                        setUploadFormData({ ...uploadFormData, pdfUrl: e.target.value })
-                      }
-                      placeholder="输入PDF文件的URL地址"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      系统将自动解析PDF并提取题目
-                    </p>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsUploadDialogOpen(false)}
                     >
-                      取消
-                    </Button>
-                    <Button onClick={handleSingleUpload} disabled={uploading}>
-                      {uploading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          解析中...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          上传并解析
-                        </>
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </TabsContent>
-                <TabsContent value="batch" className="space-y-4">
-                  <div className="space-y-4">
-                    <div>
-                      <Label>上传JSON文件</Label>
-                      <Input
-                        type="file"
-                        accept=".json"
-                        onChange={handleBatchUpload}
-                      />
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium mb-2">JSON格式说明：</p>
-                      <pre className="text-xs bg-white p-2 rounded overflow-x-auto">
-{`[
-  {
-    "title": "试卷标题",
-    "gradeId": "初一",
-    "region": "海淀区",
-    "semester": "上学期",
-    "examType": "期中",
-    "year": 2025,
-    "duration": 120,
-    "pdfUrl": "https://..."
-  }
-]`}
-                      </pre>
-                    </div>
-                    <Button variant="outline" onClick={downloadTemplate} className="w-full">
-                      <FileText className="w-4 h-4 mr-2" />
-                      下载模板文件
-                    </Button>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择年级" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="初一">初一</SelectItem>
+                        <SelectItem value="初二">初二</SelectItem>
+                        <SelectItem value="初三">初三</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </TabsContent>
-              </Tabs>
+                  <div>
+                    <Label>地区 *</Label>
+                    <Input
+                      value={uploadFormData.region}
+                      onChange={(e) =>
+                        setUploadFormData({ ...uploadFormData, region: e.target.value })
+                      }
+                      placeholder="例如：海淀区"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>学期 *</Label>
+                    <Select
+                      value={uploadFormData.semester}
+                      onValueChange={(value) =>
+                        setUploadFormData({ ...uploadFormData, semester: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="上学期">上学期</SelectItem>
+                        <SelectItem value="下学期">下学期</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>考试类型 *</Label>
+                    <Select
+                      value={uploadFormData.examType}
+                      onValueChange={(value) =>
+                        setUploadFormData({ ...uploadFormData, examType: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="期中">期中</SelectItem>
+                        <SelectItem value="期末">期末</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>年份 *</Label>
+                    <Input
+                      type="number"
+                      value={uploadFormData.year}
+                      onChange={(e) =>
+                        setUploadFormData({ ...uploadFormData, year: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>考试时长（分钟） *</Label>
+                    <Input
+                      type="number"
+                      value={uploadFormData.duration}
+                      onChange={(e) =>
+                        setUploadFormData({ ...uploadFormData, duration: e.target.value })
+                      }
+                      placeholder="120"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>PDF文件 *</Label>
+                  <Input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                  />
+                  {pdfFile && (
+                    <div className="mt-2 text-sm text-green-600 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      {pdfFile.name} ({(pdfFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    系统将自动解析PDF并提取题目，请确保文件格式正确
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsUploadDialogOpen(false)}
+                  disabled={uploading}
+                >
+                  取消
+                </Button>
+                <Button onClick={handleUpload} disabled={uploading}>
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      解析中...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      上传并解析
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

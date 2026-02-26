@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import * as pdfjsLib from "pdfjs-dist";
+
+// 设置 pdf.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 // 初始化 Supabase 客户端
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -15,11 +19,41 @@ interface UploadData {
   examType: string;
   year: number;
   duration: number;
-  pdfUrl: string;
-  pdfContent?: string; // 可选的PDF文本内容
+  pdfUrl?: string; // 可选的PDF URL
 }
 
-// LLM解析PDF并提取题目
+// 使用 pdfjs-dist 解析 PDF
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+  try {
+    // 加载 PDF 文档
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    });
+
+    const pdf = await loadingTask.promise;
+    let fullText = "";
+
+    // 遍历所有页面
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(" ");
+      fullText += pageText + "\n";
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error("PDF 解析失败:", error);
+    throw new Error(`PDF 解析失败: ${error}`);
+  }
+}
+
+// LLM解析PDF文本并提取题目
 async function extractQuestionsFromPDF(
   pdfText: string,
   title: string,
@@ -105,8 +139,8 @@ async function extractQuestionsFromPDF(
     }
 
     // 计算总分（如果LLM没有提供）
-    if (!result.total_score || result.total_score === 0) {
-      result.total_score = result.questions.reduce(
+    if (!result.totalScore || result.totalScore === 0) {
+      result.totalScore = result.questions.reduce(
         (sum: number, q: any) => sum + (q.score || 0),
         0,
       );
@@ -119,25 +153,6 @@ async function extractQuestionsFromPDF(
   }
 }
 
-// 从URL下载PDF
-async function downloadPDF(url: string): Promise<Buffer> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`下载PDF失败: ${response.statusText}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
-// 解析PDF
-async function parsePDF(buffer: Buffer): Promise<{ text: string }> {
-  // 动态导入pdf-parse
-  const pdfModule = await import("pdf-parse");
-  // @ts-ignore - pdf-parse的E模块导出问题
-  const pdf = pdfModule.default || pdfModule;
-  return pdf(buffer);
-}
-
 // POST上传真题
 export async function POST(request: NextRequest) {
   try {
@@ -147,7 +162,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未授权" }, { status: 401 });
     }
 
-    // 解析token获取用户信息（简化版，实际应该验证JWT）
+    // 解析token获取用户信息
     const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
@@ -157,50 +172,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "权限不足" }, { status: 403 });
     }
 
-    const data: UploadData = await request.json();
+    const formData = await request.formData();
+    const pdfFile = formData.get("pdfFile") as File | null;
+    const title = formData.get("title") as string;
+    const gradeId = formData.get("gradeId") as string;
+    const region = formData.get("region") as string;
+    const semester = formData.get("semester") as string;
+    const examType = formData.get("examType") as string;
+    const year = parseInt(formData.get("year") as string);
+    const duration = parseInt(formData.get("duration") as string);
 
     // 验证必填字段
-    if (
-      !data.title ||
-      !data.gradeId ||
-      !data.region ||
-      !data.semester ||
-      !data.examType ||
-      !data.year ||
-      !data.duration ||
-      !data.pdfUrl
-    ) {
+    if (!title || !gradeId || !region || !semester || !examType || !year || !duration) {
       return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
     }
 
-    // 下载PDF
-    const pdfBuffer = await downloadPDF(data.pdfUrl);
+    // 必须提供文件
+    if (!pdfFile) {
+      return NextResponse.json({ error: "请上传PDF文件" }, { status: 400 });
+    }
+
+    // 检查文件类型
+    if (pdfFile.type !== "application/pdf") {
+      return NextResponse.json({ error: "只支持PDF文件" }, { status: 400 });
+    }
+
+    // 读取文件内容
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     // 解析PDF文本
-    const pdfData = await parsePDF(pdfBuffer);
-    const pdfText = pdfData.text;
-
+    console.log("开始解析PDF...");
+    const pdfText = await extractTextFromPDF(buffer);
     console.log("PDF解析成功，文本长度:", pdfText.length);
 
     // 使用LLM提取题目
     console.log("开始LLM解析题目...");
-    const extractedData = await extractQuestionsFromPDF(pdfText, data.title);
-    console.log(
-      "LLM解析完成，提取题目数量:",
-      extractedData.questions.length,
-    );
+    const extractedData = await extractQuestionsFromPDF(pdfText, title);
+    console.log("LLM解析完成，提取题目数量:", extractedData.questions.length);
 
     // 创建真题记录
     const { data: exam, error: examError } = await supabase
       .from("real_exams")
       .insert({
-        title: data.title,
-        grade_id: data.gradeId,
-        region: data.region,
-        semester: data.semester,
-        exam_type: data.examType,
-        year: data.year,
-        duration: data.duration,
+        title,
+        grade_id: gradeId,
+        region,
+        semester,
+        exam_type: examType,
+        year,
+        duration,
         total_score: extractedData.totalScore,
         question_count: extractedData.questions.length,
         uploaded_by: user.id,
@@ -211,10 +232,7 @@ export async function POST(request: NextRequest) {
 
     if (examError) {
       console.error("创建真题记录失败:", examError);
-      return NextResponse.json(
-        { error: "创建真题记录失败" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "创建真题记录失败" }, { status: 500 });
     }
 
     // 批量插入题目
