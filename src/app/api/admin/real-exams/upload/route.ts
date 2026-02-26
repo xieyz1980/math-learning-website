@@ -6,39 +6,12 @@ import { verifyAdmin } from "@/lib/auth";
 // 初始化 Supabase 客户端（使用项目统一的方法）
 const supabase = getSupabaseClient();
 
-// 使用 pdfjs-dist 解析 PDF - 使用动态导入避免 Next.js 打包问题
+// 使用 pdfjs-dist 解析 PDF - 服务器端版本
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    // 动态导入 pdfjs
-    const pdfjs = await import("pdfjs-dist");
-    
-    // 配置 worker (只在使用时配置)
-    const workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-    if (typeof window !== "undefined" && !pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
-    }
-
-    // 加载 PDF 文档
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      useWorkerFetch: false,
-      isEvalSupported: false,
-    });
-
-    const pdf = await loadingTask.promise;
-    let fullText = "";
-
-    // 遍历所有页面
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(" ");
-      fullText += pageText + "\n";
-    }
-
-    return fullText;
+    // 使用独立的 PDF 解析工具
+    const pdfParser = require("@/lib/pdf-parser.js");
+    return await pdfParser.extractTextFromPDF(buffer);
   } catch (error) {
     console.error("PDF 解析失败:", error);
     throw new Error(`PDF 解析失败: ${error}`);
