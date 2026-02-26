@@ -48,13 +48,22 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    const newUser = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+    if (!newUser) {
+      return NextResponse.json(
+        { success: false, error: '注册失败' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: '注册成功',
       data: {
-        id: data.id,
-        email: data.email,
-        role: data.role,
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
       },
     });
   } catch (error) {

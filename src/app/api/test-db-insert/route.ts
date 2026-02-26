@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         gradesError,
         examPapersCount: examPapers?.length || 0,
         examsError,
-        testInsertSuccess: testInsert.data?.length > 0,
+        testInsertSuccess: testInsert.data ? testInsert.data.length > 0 : false,
         testInsertError: testInsert.error,
         testInsertData: testInsert.data,
       },

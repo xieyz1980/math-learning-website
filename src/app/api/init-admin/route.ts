@@ -39,13 +39,22 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    const newAdmin = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+    if (!newAdmin) {
+      return NextResponse.json(
+        { success: false, error: '创建管理员失败' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: '超级管理员创建成功',
       data: {
-        id: data.id,
-        email: data.email,
-        role: data.role,
+        id: newAdmin.id,
+        email: newAdmin.email,
+        role: newAdmin.role,
       },
     });
   } catch (error) {
