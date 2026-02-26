@@ -36,10 +36,10 @@ export default function RealExamsPage() {
   const [filteredExams, setFilteredExams] = useState<RealExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    gradeId: "",
-    region: "",
-    examType: "",
-    year: "",
+    gradeId: "all",
+    region: "all",
+    examType: "all",
+    year: "all",
   });
 
   useEffect(() => {
@@ -74,16 +74,16 @@ export default function RealExamsPage() {
   const applyFilters = () => {
     let result = [...exams];
 
-    if (filters.gradeId) {
+    if (filters.gradeId && filters.gradeId !== "all") {
       result = result.filter((e) => e.grades.id === filters.gradeId);
     }
-    if (filters.region) {
+    if (filters.region && filters.region !== "all") {
       result = result.filter((e) => e.region.includes(filters.region));
     }
-    if (filters.examType) {
+    if (filters.examType && filters.examType !== "all") {
       result = result.filter((e) => e.exam_type === filters.examType);
     }
-    if (filters.year) {
+    if (filters.year && filters.year !== "all") {
       result = result.filter((e) => e.year === parseInt(filters.year));
     }
 
@@ -119,7 +119,7 @@ export default function RealExamsPage() {
                   <SelectValue placeholder="全部年级" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部年级</SelectItem>
+                  <SelectItem value="all">全部年级</SelectItem>
                   <SelectItem value="初一">初一</SelectItem>
                   <SelectItem value="初二">初二</SelectItem>
                   <SelectItem value="初三">初三</SelectItem>
@@ -138,7 +138,7 @@ export default function RealExamsPage() {
                   <SelectValue placeholder="全部地区" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部地区</SelectItem>
+                  <SelectItem value="all">全部地区</SelectItem>
                   {regions.map((r) => (
                     <SelectItem key={r} value={r}>
                       {r}
@@ -159,7 +159,7 @@ export default function RealExamsPage() {
                   <SelectValue placeholder="全部类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部类型</SelectItem>
+                  <SelectItem value="all">全部类型</SelectItem>
                   {examTypes.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -180,7 +180,7 @@ export default function RealExamsPage() {
                   <SelectValue placeholder="全部年份" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">全部年份</SelectItem>
+                  <SelectItem value="all">全部年份</SelectItem>
                   {years.map((y) => (
                     <SelectItem key={y} value={y.toString()}>
                       {y}
