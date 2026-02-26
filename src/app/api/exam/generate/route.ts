@@ -71,7 +71,7 @@ async function generateExamQuestions(
     });
 
     // 清理 JSON 字符串
-    let cleanedContent = response
+    let cleanedContent = response.content
       // 移除markdown代码块标记
       .replace(/```json/g, '')
       .replace(/```/g, '')
