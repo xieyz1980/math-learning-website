@@ -90,7 +90,7 @@ async function parseExamFromPDF(
       throw new Error("缺少题目");
     }
 
-    result.totalScore = result.totalScore || result.questions.reduce((s, q) => s + (q.score || 0), 0);
+    result.totalScore = result.totalScore || result.questions.reduce((s: number, q: any) => s + (q.score || 0), 0);
 
     return result;
   } catch (error) {

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { LLMClient, Config } from "coze-coding-dev-sdk";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = getSupabaseClient();
 
 interface SubmitData {
   recordId: string;
