@@ -76,7 +76,14 @@ async function extractExamFromPDF(
     });
 
     // 清理 JSON 字符串
-    let cleanedContent = content
+    let cleanedContent = response.content;
+    
+    // 打印原始内容用于调试
+    console.log("LLM原始内容长度:", cleanedContent.length);
+    console.log("LLM原始内容(前500字符):", cleanedContent.substring(0, 500));
+    console.log("LLM原始内容(后500字符):", cleanedContent.substring(Math.max(0, cleanedContent.length - 500)));
+    
+    cleanedContent = cleanedContent
       // 移除markdown代码块标记
       .replace(/```json/g, '')
       .replace(/```/g, '')
