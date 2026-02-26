@@ -68,7 +68,7 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
     year: new Date().getFullYear().toString(),
     duration: "120",
   });
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
 
   useEffect(() => {
     loadExams();
@@ -92,19 +92,21 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== "application/pdf") {
-        alert("请选择PDF文件");
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      // 检查所有文件是否为图片
+      const invalidFiles = files.filter(file => !file.type.startsWith("image/"));
+      if (invalidFiles.length > 0) {
+        alert(`文件 ${invalidFiles.map(f => f.name).join(", ")} 不是有效的图片文件`);
         return;
       }
-      setPdfFile(file);
+      setImages(files);
     }
   };
 
   const handleUpload = async () => {
-    if (!uploadFormData.title || !pdfFile) {
-      alert("请填写完整信息并选择PDF文件");
+    if (!uploadFormData.title || images.length === 0) {
+      alert("请填写完整信息并选择至少一张试卷图片");
       return;
     }
 
@@ -121,7 +123,11 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
       formData.append("examType", uploadFormData.examType);
       formData.append("year", uploadFormData.year);
       formData.append("duration", uploadFormData.duration);
-      formData.append("pdfFile", pdfFile);
+
+      // 添加所有图片
+      images.forEach((image) => {
+        formData.append("images", image);
+      });
 
       const response = await fetch("/api/admin/real-exams/upload", {
         method: "POST",
@@ -185,7 +191,7 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
       year: new Date().getFullYear().toString(),
       duration: "120",
     });
-    setPdfFile(null);
+    setImages([]);
   };
 
   return (
@@ -207,7 +213,7 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
               <DialogHeader>
                 <DialogTitle>上传真题</DialogTitle>
                 <DialogDescription>
-                  上传PDF文件，系统将自动解析并提取题目
+                  上传试卷图片（支持多张），系统将自动解析并提取题目
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -311,21 +317,31 @@ export default function RealExamManagement({ user }: RealExamManagementProps) {
                   </div>
                 </div>
                 <div>
-                  <Label>PDF文件 *</Label>
+                  <Label>试卷图片 *</Label>
                   <Input
                     type="file"
-                    accept=".pdf"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    multiple
                     onChange={handleFileChange}
                     className="cursor-pointer"
                   />
-                  {pdfFile && (
-                    <div className="mt-2 text-sm text-green-600 flex items-center gap-2">
-                      <FileText className="w-4 h-4" />
-                      {pdfFile.name} ({(pdfFile.size / 1024 / 1024).toFixed(2)} MB)
+                  {images.length > 0 && (
+                    <div className="mt-2 text-sm text-green-600">
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileText className="w-4 h-4" />
+                        已选择 {images.length} 张图片
+                      </div>
+                      <div className="space-y-1">
+                        {images.map((image, index) => (
+                          <div key={index} className="text-xs text-gray-600">
+                            {index + 1}. {image.name} ({(image.size / 1024).toFixed(2)} KB)
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    系统将自动解析PDF并提取题目，请确保文件格式正确
+                    支持上传多张图片，系统将按顺序解析所有图片中的题目
                   </p>
                 </div>
               </div>

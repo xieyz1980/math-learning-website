@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LLMClient, Config } from "coze-coding-dev-sdk";
-import { S3Storage } from "coze-coding-dev-sdk";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { verifyAdmin } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
-// 初始化对象存储
-const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: "",
-  secretKey: "",
-  bucketName: process.env.COZE_BUCKET_NAME,
-  region: "cn-beijing",
-});
-
-// 使用 LLM 处理 PDF 并提取题目
-async function extractQuestionsFromPDF(
-  pdfUrl: string,
+// 使用 LLM 处理图片并提取题目
+async function extractQuestionsFromImage(
+  imageUrls: string[],
   title: string,
 ): Promise<{
   questions: Array<{
@@ -35,9 +25,9 @@ async function extractQuestionsFromPDF(
   const config = new Config();
   const client = new LLMClient(config);
 
-  const systemPrompt = `你是一个专业的数学试卷解析专家，擅长从数学试卷中提取题目信息。
+  const systemPrompt = `你是一个专业的数学试卷解析专家，擅长从试卷图片中提取题目信息。
 
-请从提供的 PDF 试卷中提取所有题目，并按照以下 JSON 格式返回：
+请从提供的试卷图片中提取所有题目，并按照以下 JSON 格式返回：
 
 {
   "questions": [
@@ -69,13 +59,17 @@ async function extractQuestionsFromPDF(
 6. 对于填空题和解答题，options 为 null
 7. answer 字段要包含完整的答案内容
 8. 只返回 JSON，不要有其他解释性文字
-9. 确保提取到所有题目，不要遗漏`;
+9. 确保提取到所有题目，不要遗漏
+10. 如果有多张图片，请按顺序提取题目`;
+
+  // 构建包含图片 URL 的消息
+  const imagePrompts = imageUrls.map((url, index) => `[图片 ${index + 1}](${url})`).join("\n");
 
   const messages = [
     { role: "system" as const, content: systemPrompt },
     {
       role: "user" as const,
-      content: `请解析以下数学试卷（PDF文件）：\n\n试卷标题：${title}\n\n试卷文件地址：${pdfUrl}\n\n请从该 PDF 文件中提取所有题目信息。`,
+      content: `请解析以下数学试卷图片：\n\n试卷标题：${title}\n\n试卷图片：\n${imagePrompts}\n\n请从这些图片中提取所有题目信息。`,
     },
   ];
 
@@ -122,7 +116,7 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyAdmin(request.headers.get("authorization"));
 
     const formData = await request.formData();
-    const pdfFile = formData.get("pdfFile") as File | null;
+    const images = formData.getAll("images") as File[];
     const title = formData.get("title") as string;
     const gradeId = formData.get("gradeId") as string;
     const region = formData.get("region") as string;
@@ -136,41 +130,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
     }
 
-    // 必须提供文件
-    if (!pdfFile) {
-      return NextResponse.json({ error: "请上传 PDF 文件" }, { status: 400 });
+    // 必须提供图片
+    if (!images || images.length === 0) {
+      return NextResponse.json({ error: "请上传至少一张试卷图片" }, { status: 400 });
     }
 
     // 检查文件类型
-    if (pdfFile.type !== "application/pdf") {
-      return NextResponse.json({ error: "只支持 PDF 文件" }, { status: 400 });
+    for (const image of images) {
+      if (!image.type.startsWith("image/")) {
+        return NextResponse.json(
+          { error: `文件 ${image.name} 不是有效的图片文件` },
+          { status: 400 },
+        );
+      }
     }
 
-    // 读取文件内容
-    const arrayBuffer = await pdfFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    console.log("开始上传 PDF 到对象存储...");
-    // 上传 PDF 到对象存储
-    const pdfKey = await storage.uploadFile({
-      fileContent: buffer,
-      fileName: `real-exams/${title}_${Date.now()}.pdf`,
-      contentType: "application/pdf",
+    // 处理图片并上传到对象存储
+    const { S3Storage } = await import("coze-coding-dev-sdk");
+    const storage = new S3Storage({
+      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+      accessKey: "",
+      secretKey: "",
+      bucketName: process.env.COZE_BUCKET_NAME,
+      region: "cn-beijing",
     });
 
-    console.log("PDF 上传成功，key:", pdfKey);
+    console.log(`开始上传 ${images.length} 张图片到对象存储...`);
 
-    // 生成 PDF 的访问 URL
-    const pdfUrl = await storage.generatePresignedUrl({
-      key: pdfKey,
-      expireTime: 3600, // 1 小时有效期
-    });
+    const imageUrls: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      const arrayBuffer = await image.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
 
-    console.log("PDF URL 生成成功:", pdfUrl);
+      const imageKey = await storage.uploadFile({
+        fileContent: buffer,
+        fileName: `real-exams/${title}_${Date.now()}_${i + 1}.${image.name.split(".").pop()}`,
+        contentType: image.type,
+      });
+
+      const imageUrl = await storage.generatePresignedUrl({
+        key: imageKey,
+        expireTime: 3600,
+      });
+
+      imageUrls.push(imageUrl);
+      console.log(`图片 ${i + 1}/${images.length} 上传成功`);
+    }
+
+    console.log("所有图片上传成功，开始 LLM 解析...");
 
     // 使用 LLM 提取题目
-    console.log("开始 LLM 解析题目...");
-    const extractedData = await extractQuestionsFromPDF(pdfUrl, title);
+    const extractedData = await extractQuestionsFromImage(imageUrls, title);
     console.log("LLM 解析完成，提取题目数量:", extractedData.questions.length);
 
     // 创建真题记录
