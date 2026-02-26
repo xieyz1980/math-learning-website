@@ -1,5 +1,5 @@
-// PDF 解析工具 - 使用 pdfjs-dist v3.11.174
-const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+// PDF 解析工具 - 使用 pdfjs-dist v2.16.105
+const pdfjsLib = require("pdfjs-dist");
 
 /**
  * 从 PDF Buffer 中提取文本
@@ -16,8 +16,6 @@ async function extractTextFromPDF(buffer) {
       data: new Uint8Array(buffer),
       useWorkerFetch: false,
       isEvalSupported: false,
-      useSystemFonts: true,
-      fontExtraProperties: false,
     });
 
     const pdf = await loadingTask.promise;
