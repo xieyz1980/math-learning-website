@@ -9,12 +9,12 @@ export interface DecodedToken {
 }
 
 /**
- * 验证管理员权限
+ * 验证用户身份（通用，不限制权限）
  * @param authHeader Authorization header value
  * @returns 解码后的 token 信息
- * @throws {Error} 如果未授权或权限不足
+ * @throws {Error} 如果未授权或token无效
  */
-export async function verifyAdmin(authHeader: string | null): Promise<DecodedToken> {
+export async function verifyUser(authHeader: string | null): Promise<DecodedToken> {
   if (!authHeader) {
     throw new Error("未授权");
   }
@@ -27,6 +27,18 @@ export async function verifyAdmin(authHeader: string | null): Promise<DecodedTok
   } catch (error) {
     throw new Error("无效的token");
   }
+
+  return decoded;
+}
+
+/**
+ * 验证管理员权限
+ * @param authHeader Authorization header value
+ * @returns 解码后的 token 信息
+ * @throws {Error} 如果未授权或权限不足
+ */
+export async function verifyAdmin(authHeader: string | null): Promise<DecodedToken> {
+  const decoded = await verifyUser(authHeader);
 
   if (decoded.email !== "xieyouzehpu@outlook.com") {
     throw new Error("权限不足");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyUser } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
@@ -12,25 +13,14 @@ export async function POST(
     const { id } = await params;
 
     // 验证用户身份
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: "用户未登录" }, { status: 401 });
-    }
+    const user = await verifyUser(request.headers.get("authorization"));
+    const userId = user.userId;
 
     // 检查是否有正在进行的考试
     const { data: existingRecord, error: checkError } = await supabase
       .from("real_exam_records")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("exam_id", id)
       .eq("status", "in_progress")
       .maybeSingle();
@@ -64,14 +54,21 @@ export async function POST(
     }
 
     // 检查用户积分是否足够
+    console.log("查询用户积分，userId:", userId);
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("app_users")
       .select("points")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
 
-    if (userError || !userData) {
+    if (userError) {
+      console.error("查询用户积分失败:", userError);
       return NextResponse.json({ error: "获取用户信息失败" }, { status: 500 });
+    }
+
+    if (!userData) {
+      console.error("用户数据不存在，userId:", userId);
+      return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
 
     if (userData.points < 50) {
@@ -83,9 +80,9 @@ export async function POST(
 
     // 扣除积分
     const { error: pointsError } = await supabase
-      .from("users")
+      .from("app_users")
       .update({ points: userData.points - 50 })
-      .eq("id", user.id);
+      .eq("id", userId);
 
     if (pointsError) {
       console.error("扣除积分失败:", pointsError);
@@ -96,7 +93,7 @@ export async function POST(
     const { data: record, error: recordError } = await supabase
       .from("real_exam_records")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         exam_id: id,
         answers: {},
         status: "in_progress",
@@ -110,9 +107,9 @@ export async function POST(
       console.error("创建考试记录失败:", recordError);
       // 回滚积分
       await supabase
-        .from("users")
+        .from("app_users")
         .update({ points: userData.points })
-        .eq("id", user.id);
+        .eq("id", userId);
       return NextResponse.json({ error: "创建考试记录失败" }, { status: 500 });
     }
 
@@ -124,6 +121,9 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     console.error("开始考试失败:", error);
     return NextResponse.json({ error: `开始考试失败: ${error}` }, { status: 500 });
   }

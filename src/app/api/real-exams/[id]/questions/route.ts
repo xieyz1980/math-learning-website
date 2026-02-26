@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyUser } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
@@ -12,26 +13,15 @@ export async function GET(
     const { id } = await params;
 
     // 验证用户身份
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: "用户未登录" }, { status: 401 });
-    }
+    const user = await verifyUser(request.headers.get("authorization"));
+    const userId = user.userId;
 
     // 检查是否已完成考试
     const { data: record, error: recordError } = await supabase
       .from("real_exam_records")
       .select("*")
       .eq("exam_id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("status", "completed")
       .maybeSingle();
 
@@ -73,6 +63,9 @@ export async function GET(
       data: questions,
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
     console.error("获取题目列表失败:", error);
     return NextResponse.json(
       { error: `获取题目列表失败: ${error}` },

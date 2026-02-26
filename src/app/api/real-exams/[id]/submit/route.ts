@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { LLMClient, Config } from "coze-coding-dev-sdk";
+import { verifyUser } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
@@ -137,26 +138,15 @@ export async function POST(
     const { recordId, answers }: SubmitData = await request.json();
 
     // 验证用户身份
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user) {
-      return NextResponse.json({ error: "用户未登录" }, { status: 401 });
-    }
+    const user = await verifyUser(request.headers.get("authorization"));
+    const userId = user.userId;
 
     // 获取考试记录
     const { data: record, error: recordError } = await supabase
       .from("real_exam_records")
       .select("*")
       .eq("id", recordId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("exam_id", id)
       .eq("status", "in_progress")
       .single();
