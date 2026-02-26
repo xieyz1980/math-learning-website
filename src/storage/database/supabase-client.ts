@@ -73,6 +73,17 @@ function getSupabaseCredentials(): SupabaseCredentials {
   const url = process.env.COZE_SUPABASE_URL;
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
+  // During build time, return empty credentials if not set
+  // This prevents build errors when Next.js collects page data
+  const isBuildTime = typeof window === 'undefined' && 
+                      (process.env.NEXT_PHASE === 'phase-production-build' || 
+                       process.env.NODE_ENV === 'production' && !url);
+
+  if (isBuildTime && !url) {
+    console.warn('COZE_SUPABASE_URL is not set during build time');
+    return { url: 'http://placeholder-url', anonKey: anonKey || 'placeholder-key' };
+  }
+
   if (!url) {
     throw new Error('COZE_SUPABASE_URL is not set');
   }
@@ -85,6 +96,22 @@ function getSupabaseCredentials(): SupabaseCredentials {
 
 function getSupabaseClient(token?: string): SupabaseClient {
   const { url, anonKey } = getSupabaseCredentials();
+
+  // If credentials are placeholders (during build), return a mock-like client
+  // that won't fail during build time
+  if (url === 'http://placeholder-url' || !url) {
+    console.warn('Using placeholder Supabase client during build time');
+    // Return a client with placeholder credentials
+    return createClient('http://placeholder-url', 'placeholder-key', {
+      db: {
+        timeout: 60000,
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
 
   if (token) {
     return createClient(url, anonKey, {
