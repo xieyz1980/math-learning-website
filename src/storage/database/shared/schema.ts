@@ -9,7 +9,7 @@ export const healthCheck = pgTable("health_check", {
 });
 
 export const textbookVersions = pgTable("textbook_versions", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar({ length: 100 }).notNull(),
 	publisher: varchar({ length: 200 }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -18,7 +18,7 @@ export const textbookVersions = pgTable("textbook_versions", {
 ]);
 
 export const grades = pgTable("grades", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	name: varchar({ length: 50 }).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -28,7 +28,7 @@ export const grades = pgTable("grades", {
 ]);
 
 export const notes = pgTable("notes", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id", { length: 36 }),
 	courseId: varchar("course_id", { length: 36 }),
 	content: text().notNull(),
@@ -50,7 +50,7 @@ export const notes = pgTable("notes", {
 ]);
 
 export const systemConfig = pgTable("system_config", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	key: varchar({ length: 100 }).notNull(),
 	value: text(),
 	description: text(),
@@ -61,7 +61,7 @@ export const systemConfig = pgTable("system_config", {
 ]);
 
 export const userProfiles = pgTable("user_profiles", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	email: varchar({ length: 255 }).notNull(),
 	role: varchar({ length: 50 }).default('user'),
 	points: integer().default(300).notNull(),
@@ -76,7 +76,7 @@ export const userProfiles = pgTable("user_profiles", {
 ]);
 
 export const courses = pgTable("courses", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar({ length: 255 }).notNull(),
 	chapter: varchar({ length: 255 }),
 	videoUrl: text("video_url"),
@@ -109,7 +109,7 @@ export const courses = pgTable("courses", {
 ]);
 
 export const appUsers = pgTable("app_users", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	email: varchar({ length: 255 }).notNull(),
 	password: varchar({ length: 255 }).notNull(),
 	role: varchar({ length: 50 }).default('user'),
@@ -125,7 +125,7 @@ export const appUsers = pgTable("app_users", {
 ]);
 
 export const examPapers = pgTable("exam_papers", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar({ length: 255 }).notNull(),
 	gradeId: varchar("grade_id", { length: 36 }),
 	region: varchar({ length: 100 }),
@@ -151,7 +151,7 @@ export const examPapers = pgTable("exam_papers", {
 ]);
 
 export const studyRecords = pgTable("study_records", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id", { length: 36 }),
 	courseId: varchar("course_id", { length: 36 }),
 	watchedDuration: integer("watched_duration").default(0),
@@ -174,7 +174,7 @@ export const studyRecords = pgTable("study_records", {
 ]);
 
 export const examRecords = pgTable("exam_records", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id", { length: 36 }),
 	paperId: varchar("paper_id", { length: 36 }),
 	answers: jsonb().default([]).notNull(),
@@ -202,7 +202,7 @@ export const examRecords = pgTable("exam_records", {
 
 // 真题表
 export const realExams = pgTable("real_exams", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	title: varchar({ length: 255 }).notNull(),
 	gradeId: varchar("grade_id", { length: 36 }),
 	region: varchar({ length: 100 }).notNull(),
@@ -237,7 +237,7 @@ export const realExams = pgTable("real_exams", {
 
 // 真题题目表
 export const realExamQuestions = pgTable("real_exam_questions", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	examId: varchar("exam_id", { length: 36 }).notNull(),
 	questionNumber: integer("question_number").notNull(),
 	questionType: varchar("question_type", { length: 50 }).notNull(),
@@ -262,7 +262,7 @@ export const realExamQuestions = pgTable("real_exam_questions", {
 
 // 真题考试记录表
 export const realExamRecords = pgTable("real_exam_records", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id", { length: 36 }),
 	examId: varchar("exam_id", { length: 36 }),
 	answers: jsonb().default({}).notNull(),
@@ -292,7 +292,7 @@ export const realExamRecords = pgTable("real_exam_records", {
 
 // 错题本表
 export const wrongQuestions = pgTable("wrong_questions", {
-	id: varchar({ length: 36 }).default(gen_random_uuid()).primaryKey().notNull(),
+	id: varchar({ length: 36 }).default(sql`gen_random_uuid()`).primaryKey().notNull(),
 	userId: varchar("user_id", { length: 36 }),
 	questionId: varchar("question_id", { length: 36 }).notNull(),
 	questionType: varchar("question_type", { length: 50 }).notNull(),
