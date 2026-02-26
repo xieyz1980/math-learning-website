@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjs from "pdfjs-dist";
 
 // 设置 pdf.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+const pdfjsVersion = pdfjs.version || "5.4.624";
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`;
 
 // 初始化 Supabase 客户端
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -26,7 +27,7 @@ interface UploadData {
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
     // 加载 PDF 文档
-    const loadingTask = pdfjsLib.getDocument({
+    const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       useWorkerFetch: false,
       isEvalSupported: false,
