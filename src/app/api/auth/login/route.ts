@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,6 +42,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 生成 JWT token
+    const token = jwt.sign(
+      {
+        userId: user[0].id,
+        email: user[0].email,
+        role: user[0].role,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     return NextResponse.json({
       success: true,
       message: '登录成功',
@@ -48,6 +62,7 @@ export async function POST(request: NextRequest) {
         role: user[0].role,
         points: user[0].points,
         status: user[0].status,
+        token: token,
       },
     });
   } catch (error) {

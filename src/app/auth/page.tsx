@@ -34,8 +34,11 @@ export default function AuthPage() {
       const data = await response.json();
 
       if (data.success) {
-        // 保存用户信息到 localStorage
+        // 保存用户信息和 token 到 localStorage
         localStorage.setItem('user', JSON.stringify(data.data));
+        if (data.data.token) {
+          localStorage.setItem('token', data.data.token);
+        }
         router.push('/');
       } else {
         alert(data.error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyAdmin } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
@@ -13,22 +14,10 @@ export async function PATCH(
     const body = await request.json();
 
     // 验证管理员权限
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user || user.email !== "xieyouzehpu@outlook.com") {
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    await verifyAdmin(request.headers.get("authorization"));
 
     const { error } = await supabase
-      .from("users")
+      .from("app_users")
       .update({
         ...(body.status && { status: body.status }),
         ...(body.role && { role: body.role }),
@@ -45,6 +34,12 @@ export async function PATCH(
       message: "更新成功",
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("更新用户失败:", error);
     return NextResponse.json(
       { error: `更新用户失败: ${error}` },
@@ -62,22 +57,10 @@ export async function DELETE(
     const { id } = await params;
 
     // 验证管理员权限
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user || user.email !== "xieyouzehpu@outlook.com") {
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    await verifyAdmin(request.headers.get("authorization"));
 
     // 删除用户
-    const { error } = await supabase.from("users").delete().eq("id", id);
+    const { error } = await supabase.from("app_users").delete().eq("id", id);
 
     if (error) {
       console.error("删除用户失败:", error);
@@ -89,6 +72,12 @@ export async function DELETE(
       message: "删除成功",
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("删除用户失败:", error);
     return NextResponse.json(
       { error: `删除用户失败: ${error}` },

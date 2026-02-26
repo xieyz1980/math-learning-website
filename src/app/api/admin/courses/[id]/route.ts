@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { verifyAdmin } from '@/lib/auth';
 
 // 获取单个课程
 export async function GET(
@@ -46,24 +47,14 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { title, chapter, videoUrl, description, videoType, userId } =
+
+    // 验证管理员权限
+    await verifyAdmin(request.headers.get("authorization"));
+
+    const { title, chapter, videoUrl, description, videoType } =
       await request.json();
 
     const client = getSupabaseClient();
-
-    // 验证用户是否是管理员
-    const { data: user } = await client
-      .from('app_users')
-      .select('*')
-      .eq('id', userId)
-      .limit(1);
-
-    if (!user || user.length === 0 || user[0].role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: '无权限修改课程' },
-        { status: 403 }
-      );
-    }
 
     const updateData: any = {};
     if (title) updateData.title = title;
@@ -89,6 +80,12 @@ export async function PUT(
       data,
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error('更新课程失败:', error);
     return NextResponse.json(
       {
@@ -107,23 +104,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { userId } = await request.json();
+
+    // 验证管理员权限
+    await verifyAdmin(request.headers.get("authorization"));
 
     const client = getSupabaseClient();
-
-    // 验证用户是否是管理员
-    const { data: user } = await client
-      .from('app_users')
-      .select('*')
-      .eq('id', userId)
-      .limit(1);
-
-    if (!user || user.length === 0 || user[0].role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: '无权限删除课程' },
-        { status: 403 }
-      );
-    }
 
     const { error } = await client.from('courses').delete().eq('id', id);
 
@@ -136,6 +121,12 @@ export async function DELETE(
       message: '课程删除成功',
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error('删除课程失败:', error);
     return NextResponse.json(
       {

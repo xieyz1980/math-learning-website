@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyAdmin } from "@/lib/auth";
 
 // 初始化 Supabase 客户端（使用项目统一的方法）
 const supabase = getSupabaseClient();
@@ -148,20 +149,7 @@ async function extractQuestionsFromPDF(
 export async function POST(request: NextRequest) {
   try {
     // 验证管理员权限
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    // 解析token获取用户信息
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user || user.email !== "xieyouzehpu@outlook.com") {
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    const decoded = await verifyAdmin(request.headers.get("authorization"));
 
     const formData = await request.formData();
     const pdfFile = formData.get("pdfFile") as File | null;
@@ -215,7 +203,7 @@ export async function POST(request: NextRequest) {
         duration,
         total_score: extractedData.totalScore,
         question_count: extractedData.questions.length,
-        uploaded_by: user.id,
+        uploaded_by: decoded.userId,
         updated_at: new Date().toISOString(),
       })
       .select()

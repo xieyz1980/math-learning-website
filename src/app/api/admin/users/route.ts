@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyAdmin } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
@@ -7,22 +8,10 @@ const supabase = getSupabaseClient();
 export async function GET(request: NextRequest) {
   try {
     // 验证管理员权限
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user || user.email !== "xieyouzehpu@outlook.com") {
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    await verifyAdmin(request.headers.get("authorization"));
 
     const { data, error } = await supabase
-      .from("users")
+      .from("app_users")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -36,6 +25,12 @@ export async function GET(request: NextRequest) {
       data,
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("获取用户列表失败:", error);
     return NextResponse.json(
       { error: `获取用户列表失败: ${error}` },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { verifyAdmin } from '@/lib/auth';
 
 // 获取所有课程
 export async function GET(request: NextRequest) {
@@ -30,31 +31,20 @@ export async function GET(request: NextRequest) {
 // 添加新课程
 export async function POST(request: NextRequest) {
   try {
-    const { title, chapter, videoUrl, description, videoType, userId } =
+    // 验证管理员权限
+    const decoded = await verifyAdmin(request.headers.get("authorization"));
+
+    const { title, chapter, videoUrl, description, videoType } =
       await request.json();
 
-    if (!title || !chapter || !videoUrl || !userId) {
+    if (!title || !chapter || !videoUrl) {
       return NextResponse.json(
-        { success: false, error: '标题、章节、视频链接和创建者ID不能为空' },
+        { success: false, error: '标题、章节和视频链接不能为空' },
         { status: 400 }
       );
     }
 
     const client = getSupabaseClient();
-
-    // 验证用户是否是管理员
-    const { data: user } = await client
-      .from('app_users')
-      .select('*')
-      .eq('id', userId)
-      .limit(1);
-
-    if (!user || user.length === 0 || user[0].role !== 'admin') {
-      return NextResponse.json(
-        { success: false, error: '无权限添加课程' },
-        { status: 403 }
-      );
-    }
 
     const { data, error } = await client
       .from('courses')
@@ -64,7 +54,7 @@ export async function POST(request: NextRequest) {
         videoUrl,
         description,
         videoType: videoType || 'bilibili',
-        createdBy: userId,
+        createdBy: decoded.userId,
       })
       .select()
       .single();
@@ -79,6 +69,12 @@ export async function POST(request: NextRequest) {
       data,
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error('添加课程失败:', error);
     return NextResponse.json(
       {

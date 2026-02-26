@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { verifyAdmin } from "@/lib/auth";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = getSupabaseClient();
 
 // DELETE 删除真题
 export async function DELETE(
@@ -14,19 +13,7 @@ export async function DELETE(
     const { id } = await params;
 
     // 验证管理员权限
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-
-    if (!user || user.email !== "xieyouzehpu@outlook.com") {
-      return NextResponse.json({ error: "权限不足" }, { status: 403 });
-    }
+    await verifyAdmin(request.headers.get("authorization"));
 
     // 先删除考试记录
     const { error: recordsError } = await supabase
@@ -69,6 +56,12 @@ export async function DELETE(
       message: "删除成功",
     });
   } catch (error) {
+    if (error instanceof Error && (error.message === "未授权" || error.message === "无效的token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "权限不足") {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("删除真题失败:", error);
     return NextResponse.json(
       { error: `删除真题失败: ${error}` },
