@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Video, BookOpen, ClipboardCheck, User, LogOut, Settings } from 'lucide-react';
+import { Video, BookOpen, ClipboardCheck, User, LogOut, Settings, FileText } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -73,8 +73,8 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 三大模块卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* 四大模块卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* 学习视频模块 */}
           <Link href="/videos">
             <Card className="h-full hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 hover:border-blue-500">
@@ -145,6 +145,31 @@ export default function Home() {
                 </ul>
                 <Button className="w-full mt-4 bg-purple-600 hover:bg-purple-700">
                   开始考试
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* 历年真题模块 */}
+          <Link href="/real-exams">
+            <Card className="h-full hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 cursor-pointer border-2 hover:border-orange-500">
+              <CardHeader>
+                <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="w-8 h-8 text-orange-600 dark:text-orange-300" />
+                </div>
+                <CardTitle className="text-2xl">历年真题</CardTitle>
+                <CardDescription>
+                  北京海淀、西城等地历年真题，AI判卷分析
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li>• 历年真题在线考试</li>
+                  <li>• 真实考试计时</li>
+                  <li>• AI智能判卷分析</li>
+                </ul>
+                <Button className="w-full mt-4 bg-orange-600 hover:bg-orange-700">
+                  开始练习
                 </Button>
               </CardContent>
             </Card>
