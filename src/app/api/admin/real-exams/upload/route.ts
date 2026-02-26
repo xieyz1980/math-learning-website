@@ -35,33 +35,7 @@ async function extractExamFromPDF(
 
 请从提供的 PDF 试卷中提取所有信息，并按照以下 JSON 格式返回：
 
-{
-  "title": "试卷标题",
-  "grade": "初一/初二/初三",
-  "region": "地区名称",
-  "semester": "上学期/下学期",
-  "examType": "期中/期末/模拟",
-  "year": 2024,
-  "duration": 120,
-  "questions": [
-    {
-      "question_number": 1,
-      "question_type": "选择题",
-      "content": "题目内容（包括题干）",
-      "options": {
-        "A": "选项A内容",
-        "B": "选项B内容",
-        "C": "选项C内容",
-        "D": "选项D内容"
-      },
-      "answer": "A",
-      "score": 5,
-      "difficulty": "easy",
-      "knowledge_points": ["有理数", "绝对值"]
-    }
-  ],
-  "total_score": 100
-}
+{"title":"试卷标题","grade":"初一/初二/初三","region":"地区名称","semester":"上学期/下学期","examType":"期中/期末/模拟","year":2024,"duration":120,"questions":[{"question_number":1,"question_type":"选择题","content":"题目内容（包括题干）","options":{"A":"选项A内容","B":"选项B内容","C":"选项C内容","D":"选项D内容"},"answer":"A","score":5,"difficulty":"easy","knowledge_points":["有理数","绝对值"]}],"total_score":100}
 
 注意事项：
 1. title: 提取试卷的完整标题
@@ -79,7 +53,11 @@ async function extractExamFromPDF(
 13. 对于填空题和解答题，options 为 null
 14. answer 字段要包含完整的答案内容
 15. 只返回 JSON，不要有其他解释性文字
-16. 确保提取到所有信息，不要遗漏`;
+16. 确保提取到所有信息，不要遗漏
+17. **重要**：JSON必须格式正确，不要包含换行符或特殊字符
+18. **重要**：content字段中的文本不要使用换行符，用空格代替
+19. **重要**：确保所有字符串都用双引号括起来
+20. **重要**：确保数组元素之间有逗号分隔`;
 
   const messages = [
     { role: "system" as const, content: systemPrompt },
@@ -97,15 +75,52 @@ async function extractExamFromPDF(
       temperature: 0.3,
     });
 
-    // 提取 JSON 部分
-    const content = response.content.trim();
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    // 清理 JSON 字符串
+    let cleanedContent = content
+      // 移除markdown代码块标记
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      // 移除多余空白
+      .replace(/\s+/g, ' ')
+      // 修复常见的JSON格式问题
+      .replace(/,\s*]/g, ']')  // 移除数组末尾的逗号
+      .replace(/,\s*}/g, '}')  // 移除对象末尾的逗号
+      // 处理换行符
+      .replace(/\\n/g, ' ')
+      .replace(/\\r/g, ' ')
+      .replace(/\\t/g, ' ');
 
-    if (!jsonMatch) {
+    // 尝试提取JSON对象
+    const start = cleanedContent.indexOf('{');
+    const end = cleanedContent.lastIndexOf('}');
+    
+    if (start === -1 || end === -1 || end <= start) {
       throw new Error("无法从 LLM 响应中提取 JSON");
     }
 
-    const result = JSON.parse(jsonMatch[0]);
+    const jsonString = cleanedContent.substring(start, end + 1);
+
+    // 尝试解析，如果失败则尝试修复
+    let result;
+    try {
+      result = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error("JSON解析失败，尝试修复:", parseError);
+      
+      // 尝试修复：移除未闭合的引号
+      let fixedJson = jsonString.replace(/"([^"]*)$/g, '"$1"');
+      
+      // 尝试修复：修复缺失的逗号
+      fixedJson = fixedJson.replace(/"}\s*{/g, '"},{');
+      fixedJson = fixedJson.replace(/"]\s*{/g, '"],{');
+      
+      try {
+        result = JSON.parse(fixedJson);
+      } catch (secondError) {
+        console.error("JSON修复失败:", secondError);
+        throw new Error(`JSON解析错误: ${parseError}`);
+      }
+    }
 
     // 验证必填字段
     if (!result.title || !result.grade || !result.region || !result.semester || !result.examType || !result.year || !result.duration) {

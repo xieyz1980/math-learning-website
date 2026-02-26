@@ -70,29 +70,52 @@ async function generateExamQuestions(
       temperature: 0.7,
     });
 
-    // 提取 JSON 部分 - 使用更宽松的正则表达式
-    const content = response.content.trim();
-    
-    // 尝试提取完整的 JSON 对象
-    let jsonString = '';
-    const start = content.indexOf('{');
-    const end = content.lastIndexOf('}');
-    
-    if (start !== -1 && end !== -1 && end > start) {
-      jsonString = content.substring(start, end + 1);
-    } else {
-      throw new Error("无法从 LLM 响应中提取 JSON");
-    }
-
-    // 清理 JSON 字符串中的换行符和其他控制字符
-    jsonString = jsonString
-      .replace(/[\n\r\t]/g, ' ')
+    // 清理 JSON 字符串
+    let cleanedContent = content
+      // 移除markdown代码块标记
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      // 移除多余空白
       .replace(/\s+/g, ' ')
+      // 修复常见的JSON格式问题
+      .replace(/,\s*]/g, ']')  // 移除数组末尾的逗号
+      .replace(/,\s*}/g, '}')  // 移除对象末尾的逗号
+      // 处理换行符
       .replace(/\\n/g, ' ')
       .replace(/\\r/g, ' ')
       .replace(/\\t/g, ' ');
 
-    const result = JSON.parse(jsonString);
+    // 尝试提取JSON对象
+    const start = cleanedContent.indexOf('{');
+    const end = cleanedContent.lastIndexOf('}');
+    
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error("无法从 LLM 响应中提取 JSON");
+    }
+
+    const jsonString = cleanedContent.substring(start, end + 1);
+
+    // 尝试解析，如果失败则尝试修复
+    let result;
+    try {
+      result = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error("JSON解析失败，尝试修复:", parseError);
+      
+      // 尝试修复：移除未闭合的引号
+      let fixedJson = jsonString.replace(/"([^"]*)$/g, '"$1"');
+      
+      // 尝试修复：修复缺失的逗号
+      fixedJson = fixedJson.replace(/"}\s*{/g, '"},{');
+      fixedJson = fixedJson.replace(/"]\s*{/g, '"],{');
+      
+      try {
+        result = JSON.parse(fixedJson);
+      } catch (secondError) {
+        console.error("JSON修复失败:", secondError);
+        throw new Error(`JSON解析错误: ${parseError}`);
+      }
+    }
 
     // 验证数据
     if (!result.questions || !Array.isArray(result.questions)) {
