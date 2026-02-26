@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Video, BookOpen, ClipboardCheck, User, LogOut, Settings, FileText } from 'lucide-react';
+import { Video, BookOpen, ClipboardCheck, User, LogOut, Settings, FileText, BookX, BarChart3 } from 'lucide-react';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -39,6 +39,19 @@ export default function Home() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>我的账户</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/wrong-questions" className="cursor-pointer">
+                    <BookX className="w-4 h-4 mr-2" />
+                    错题本
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/statistics" className="cursor-pointer">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    数据统计
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {user.role === 'admin' && (
                   <DropdownMenuItem asChild>
                     <Link href="/admin" className="cursor-pointer">
@@ -47,6 +60,7 @@ export default function Home() {
                     </Link>
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
                   退出登录
