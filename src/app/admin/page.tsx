@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Settings, Users, FileText, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import CourseManagement from "./components/CourseManagement";
-import RealExamManagement from "./components/RealExamManagement";
+import { RealExamManagement } from "./components/RealExamManagement";
 import UserManagement from "./components/UserManagement";
 
 export default function AdminPage() {
@@ -74,7 +74,7 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="exams">
-            <RealExamManagement user={user} />
+            <RealExamManagement />
           </TabsContent>
 
           <TabsContent value="users">

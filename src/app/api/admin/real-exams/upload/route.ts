@@ -5,11 +5,17 @@ import { verifyAdmin } from "@/lib/auth";
 
 const supabase = getSupabaseClient();
 
-// 使用 LLM 处理图片并提取题目
-async function extractQuestionsFromImage(
-  imageUrls: string[],
-  title: string,
+// LLM 提取试卷所有信息（包括元数据和题目）
+async function extractExamFromPDF(
+  pdfUrl: string,
 ): Promise<{
+  title: string;
+  grade: string;
+  region: string;
+  semester: string;
+  examType: string;
+  year: number;
+  duration: number;
   questions: Array<{
     question_number: number;
     question_type: string;
@@ -25,11 +31,18 @@ async function extractQuestionsFromImage(
   const config = new Config();
   const client = new LLMClient(config);
 
-  const systemPrompt = `你是一个专业的数学试卷解析专家，擅长从试卷图片中提取题目信息。
+  const systemPrompt = `你是一个专业的数学试卷解析专家，擅长从数学试卷中提取完整信息。
 
-请从提供的试卷图片中提取所有题目，并按照以下 JSON 格式返回：
+请从提供的 PDF 试卷中提取所有信息，并按照以下 JSON 格式返回：
 
 {
+  "title": "试卷标题",
+  "grade": "初一/初二/初三",
+  "region": "地区名称",
+  "semester": "上学期/下学期",
+  "examType": "期中/期末/模拟",
+  "year": 2024,
+  "duration": 120,
   "questions": [
     {
       "question_number": 1,
@@ -51,25 +64,30 @@ async function extractQuestionsFromImage(
 }
 
 注意事项：
-1. question_type 只能是：选择题、填空题、解答题
-2. difficulty 只能是：easy、medium、hard
-3. score 要根据题目实际分值填写
-4. knowledge_points 要提取题目涉及的知识点（至少1个）
-5. 对于选择题，options 是必需的
-6. 对于填空题和解答题，options 为 null
-7. answer 字段要包含完整的答案内容
-8. 只返回 JSON，不要有其他解释性文字
-9. 确保提取到所有题目，不要遗漏
-10. 如果有多张图片，请按顺序提取题目`;
-
-  // 构建包含图片 URL 的消息
-  const imagePrompts = imageUrls.map((url, index) => `[图片 ${index + 1}](${url})`).join("\n");
+1. title: 提取试卷的完整标题
+2. grade: 只能是"初一"、"初二"或"初三"
+3. region: 提取地区信息，如"海淀区"、"西城区"等
+4. semester: 只能是"上学期"或"下学期"
+5. examType: 只能是"期中"、"期末"或"模拟"
+6. year: 提取考试年份（4位数字）
+7. duration: 提取考试时长（分钟）
+8. question_type 只能是：选择题、填空题、解答题
+9. difficulty 只能是：easy、medium、hard
+10. score 要根据题目实际分值填写
+11. knowledge_points 要提取题目涉及的知识点（至少1个）
+12. 对于选择题，options 是必需的
+13. 对于填空题和解答题，options 为 null
+14. answer 字段要包含完整的答案内容
+15. 只返回 JSON，不要有其他解释性文字
+16. 确保提取到所有信息，不要遗漏`;
 
   const messages = [
     { role: "system" as const, content: systemPrompt },
     {
       role: "user" as const,
-      content: `请解析以下数学试卷图片：\n\n试卷标题：${title}\n\n试卷图片：\n${imagePrompts}\n\n请从这些图片中提取所有题目信息。`,
+      content: `请解析以下数学试卷（PDF文件），提取试卷的所有信息（标题、年级、地区、学期、考试类型、年份、时长）以及所有题目信息。
+
+试卷文件地址：${pdfUrl}`,
     },
   ];
 
@@ -89,9 +107,14 @@ async function extractQuestionsFromImage(
 
     const result = JSON.parse(jsonMatch[0]);
 
-    // 验证数据格式
-    if (!result.questions || !Array.isArray(result.questions)) {
-      throw new Error("解析结果格式错误：缺少 questions 数组");
+    // 验证必填字段
+    if (!result.title || !result.grade || !result.region || !result.semester || !result.examType || !result.year || !result.duration) {
+      throw new Error("缺少必填字段");
+    }
+
+    // 验证题目数据
+    if (!result.questions || !Array.isArray(result.questions) || result.questions.length === 0) {
+      throw new Error("缺少题目数据");
     }
 
     // 计算总分（如果 LLM 没有提供）
@@ -116,36 +139,25 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyAdmin(request.headers.get("authorization"));
 
     const formData = await request.formData();
-    const images = formData.getAll("images") as File[];
-    const title = formData.get("title") as string;
-    const gradeId = formData.get("gradeId") as string;
-    const region = formData.get("region") as string;
-    const semester = formData.get("semester") as string;
-    const examType = formData.get("examType") as string;
-    const year = parseInt(formData.get("year") as string);
-    const duration = parseInt(formData.get("duration") as string);
+    const pdfFile = formData.get("pdfFile") as File | null;
 
-    // 验证必填字段
-    if (!title || !gradeId || !region || !semester || !examType || !year || !duration) {
-      return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
-    }
-
-    // 必须提供图片
-    if (!images || images.length === 0) {
-      return NextResponse.json({ error: "请上传至少一张试卷图片" }, { status: 400 });
+    // 必须提供文件
+    if (!pdfFile) {
+      return NextResponse.json({ error: "请上传 PDF 文件" }, { status: 400 });
     }
 
     // 检查文件类型
-    for (const image of images) {
-      if (!image.type.startsWith("image/")) {
-        return NextResponse.json(
-          { error: `文件 ${image.name} 不是有效的图片文件` },
-          { status: 400 },
-        );
-      }
+    if (pdfFile.type !== "application/pdf") {
+      return NextResponse.json({ error: "只支持 PDF 文件" }, { status: 400 });
     }
 
-    // 处理图片并上传到对象存储
+    // 读取文件内容
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    console.log("开始上传 PDF 到对象存储...");
+
+    // 上传 PDF 到对象存储
     const { S3Storage } = await import("coze-coding-dev-sdk");
     const storage = new S3Storage({
       endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
@@ -155,46 +167,54 @@ export async function POST(request: NextRequest) {
       region: "cn-beijing",
     });
 
-    console.log(`开始上传 ${images.length} 张图片到对象存储...`);
+    const pdfKey = await storage.uploadFile({
+      fileContent: buffer,
+      fileName: `real-exams/${pdfFile.name}_${Date.now()}.pdf`,
+      contentType: "application/pdf",
+    });
 
-    const imageUrls: string[] = [];
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
-      const arrayBuffer = await image.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+    console.log("PDF 上传成功，key:", pdfKey);
 
-      const imageKey = await storage.uploadFile({
-        fileContent: buffer,
-        fileName: `real-exams/${title}_${Date.now()}_${i + 1}.${image.name.split(".").pop()}`,
-        contentType: image.type,
-      });
+    // 生成 PDF 的访问 URL
+    const pdfUrl = await storage.generatePresignedUrl({
+      key: pdfKey,
+      expireTime: 3600, // 1 小时有效期
+    });
 
-      const imageUrl = await storage.generatePresignedUrl({
-        key: imageKey,
-        expireTime: 3600,
-      });
+    console.log("PDF URL 生成成功，开始 LLM 解析...");
 
-      imageUrls.push(imageUrl);
-      console.log(`图片 ${i + 1}/${images.length} 上传成功`);
+    // 使用 LLM 提取试卷所有信息
+    const extractedData = await extractExamFromPDF(pdfUrl);
+    console.log("LLM 解析完成：", {
+      title: extractedData.title,
+      grade: extractedData.grade,
+      questions: extractedData.questions.length,
+      totalScore: extractedData.totalScore,
+    });
+
+    // 获取年级 ID
+    const { data: grade } = await supabase
+      .from("grades")
+      .select("id")
+      .eq("name", extractedData.grade)
+      .limit(1)
+      .single();
+
+    if (!grade) {
+      return NextResponse.json({ error: `找不到年级：${extractedData.grade}` }, { status: 400 });
     }
-
-    console.log("所有图片上传成功，开始 LLM 解析...");
-
-    // 使用 LLM 提取题目
-    const extractedData = await extractQuestionsFromImage(imageUrls, title);
-    console.log("LLM 解析完成，提取题目数量:", extractedData.questions.length);
 
     // 创建真题记录
     const { data: exam, error: examError } = await supabase
       .from("real_exams")
       .insert({
-        title,
-        grade_id: gradeId,
-        region,
-        semester,
-        exam_type: examType,
-        year,
-        duration,
+        title: extractedData.title,
+        grade_id: grade.id,
+        region: extractedData.region,
+        semester: extractedData.semester,
+        exam_type: extractedData.examType,
+        year: extractedData.year,
+        duration: extractedData.duration,
         total_score: extractedData.totalScore,
         question_count: extractedData.questions.length,
         uploaded_by: decoded.userId,
