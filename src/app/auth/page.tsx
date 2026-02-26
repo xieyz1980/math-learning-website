@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 export default function AuthPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
     email: '',
@@ -20,15 +21,26 @@ export default function AuthPage() {
     confirmPassword: '',
   });
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMessage('');
     setIsLoading(true);
+
+    // 验证输入
+    if (!loginForm.email || !loginForm.password) {
+      setErrorMessage('邮箱和密码不能为空');
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({
+          email: loginForm.email,
+          password: loginForm.password,
+        }),
       });
 
       const data = await response.json();
@@ -41,25 +53,33 @@ export default function AuthPage() {
         }
         router.push('/');
       } else {
-        alert(data.error);
+        setErrorMessage(data.error || '登录失败');
       }
     } catch (error) {
-      alert('登录失败，请稍后重试');
+      setErrorMessage('登录失败，请稍后重试');
+      console.error('登录错误:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErrorMessage('');
+
+    // 验证输入
+    if (!registerForm.email || !registerForm.password) {
+      setErrorMessage('邮箱和密码不能为空');
+      return;
+    }
 
     if (registerForm.password !== registerForm.confirmPassword) {
-      alert('两次输入的密码不一致');
+      setErrorMessage('两次输入的密码不一致');
       return;
     }
 
     if (registerForm.password.length < 6) {
-      alert('密码长度至少6位');
+      setErrorMessage('密码长度至少6位');
       return;
     }
 
@@ -84,14 +104,20 @@ export default function AuthPage() {
           password: '',
           confirmPassword: '',
         });
+        // 切换到登录 tab
+        const loginTab = document.querySelector('[value="login"]') as HTMLElement;
+        if (loginTab) {
+          loginTab.click();
+        }
       } else {
-        alert(data.error);
+        setErrorMessage(data.error || '注册失败');
       }
     } catch (error) {
-      alert('注册失败，请稍后重试');
+      setErrorMessage('注册失败，请稍后重试');
+      console.error('注册错误:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -121,6 +147,12 @@ export default function AuthPage() {
               {/* 登录表单 */}
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4 mt-4">
+                  {errorMessage && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {errorMessage}
+                    </div>
+                  )}
+
                   <div>
                     <Label htmlFor="login-email">邮箱</Label>
                     <div className="relative">
@@ -131,10 +163,10 @@ export default function AuthPage() {
                         placeholder="请输入邮箱"
                         className="pl-10"
                         value={loginForm.email}
-                        onChange={(e) =>
-                          setLoginForm({ ...loginForm, email: e.target.value })
-                        }
-                        required
+                        onChange={(e) => {
+                          setErrorMessage('');
+                          setLoginForm({ ...loginForm, email: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
@@ -149,13 +181,10 @@ export default function AuthPage() {
                         placeholder="请输入密码"
                         className="pl-10"
                         value={loginForm.password}
-                        onChange={(e) =>
-                          setLoginForm({
-                            ...loginForm,
-                            password: e.target.value,
-                          })
-                        }
-                        required
+                        onChange={(e) => {
+                          setErrorMessage('');
+                          setLoginForm({ ...loginForm, password: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
@@ -175,11 +204,30 @@ export default function AuthPage() {
                     )}
                   </Button>
                 </form>
+
+                {/* 测试账号提示 */}
+                <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                    测试账号（管理员）
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    邮箱：xieyouzehpu@outlook.com
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    密码：xyz20010
+                  </p>
+                </div>
               </TabsContent>
 
               {/* 注册表单 */}
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4 mt-4">
+                  {errorMessage && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                      {errorMessage}
+                    </div>
+                  )}
+
                   <div>
                     <Label htmlFor="register-email">邮箱</Label>
                     <div className="relative">
@@ -190,13 +238,10 @@ export default function AuthPage() {
                         placeholder="请输入邮箱"
                         className="pl-10"
                         value={registerForm.email}
-                        onChange={(e) =>
-                          setRegisterForm({
-                            ...registerForm,
-                            email: e.target.value,
-                          })
-                        }
-                        required
+                        onChange={(e) => {
+                          setErrorMessage('');
+                          setRegisterForm({ ...registerForm, email: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
@@ -211,14 +256,10 @@ export default function AuthPage() {
                         placeholder="请输入密码（至少6位）"
                         className="pl-10"
                         value={registerForm.password}
-                        onChange={(e) =>
-                          setRegisterForm({
-                            ...registerForm,
-                            password: e.target.value,
-                          })
-                        }
-                        required
-                        minLength={6}
+                        onChange={(e) => {
+                          setErrorMessage('');
+                          setRegisterForm({ ...registerForm, password: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
@@ -233,13 +274,10 @@ export default function AuthPage() {
                         placeholder="请再次输入密码"
                         className="pl-10"
                         value={registerForm.confirmPassword}
-                        onChange={(e) =>
-                          setRegisterForm({
-                            ...registerForm,
-                            confirmPassword: e.target.value,
-                          })
-                        }
-                        required
+                        onChange={(e) => {
+                          setErrorMessage('');
+                          setRegisterForm({ ...registerForm, confirmPassword: e.target.value });
+                        }}
                       />
                     </div>
                   </div>
