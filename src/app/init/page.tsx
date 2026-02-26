@@ -51,17 +51,18 @@ export default function InitPage() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">初始化数据库</CardTitle>
-            <CardDescription>创建测试用户和管理员账号</CardDescription>
+            <CardDescription>创建测试用户和示例课程数据</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  此操作将创建以下账号：
+                  此操作将创建以下数据：
                   <ul className="mt-2 ml-4 list-disc">
                     <li>超级管理员: xieyouzehpu@outlook.com / xyz20010</li>
                     <li>测试用户: test1@example.com / 12234567890</li>
+                    <li>示例课程: 6门初中数学课程（有理数、一元一次方程、二次根式、勾股定理、一元二次方程、二次函数）</li>
                   </ul>
                 </AlertDescription>
               </Alert>
